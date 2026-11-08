@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>牧神的地窖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#2a1f17;--paper:#e9dcc2;--paper2:#dccba9;--line:#8a7253;--dark:#14100c;--gold:#b8894a;--rust:#8b3a1a;--light:#d9c8a8}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--dark);color:var(--ink);font-family:'Noto Serif TC',serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font-family:inherit;cursor:pointer}
+.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .8s}
+.screen.on{display:flex}.screen.show{opacity:1}
+
+/* 開場 */
+#intro{flex-direction:column;gap:28px;color:var(--light);text-align:center;padding:24px}
+#intro p{font-size:20px;letter-spacing:.2em;line-height:2}
+.ghost{background:none;border:1px solid #6d5a42;color:var(--light);padding:10px 28px;font-size:15px;letter-spacing:.3em}
+.ghost:hover{background:#2a2118}
+
+/* 登記簿 */
+#creator{overflow-y:auto;align-items:flex-start;padding:16px 0 40px}
+.book{width:min(920px,94vw);margin:auto;background:var(--paper);background-image:repeating-linear-gradient(transparent 0 31px,rgba(138,114,83,.18) 31px 32px);
+  border:2px solid var(--line);box-shadow:0 0 0 6px var(--paper2),0 0 0 8px var(--line),0 20px 50px rgba(0,0,0,.6);padding:22px 22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:26px}
+.book h1{grid-column:1/-1;text-align:center;font-size:20px;letter-spacing:.35em;color:var(--rust);border-bottom:1px solid var(--line);padding-bottom:10px}
+.book h1 small{display:block;font-size:11px;letter-spacing:.25em;color:#7a6550;margin-top:4px}
+.portrait-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.frame{width:100%;max-width:400px;aspect-ratio:1;border:3px solid var(--ink);outline:1px solid var(--line);outline-offset:4px;background:#a7a4a2;position:relative}
+.frame canvas{width:100%;height:100%;display:block}
+.stamp{position:absolute;right:-8px;bottom:-10px;width:70px;height:70px;border:2px solid rgba(139,58,26,.75);border-radius:50%;color:rgba(139,58,26,.8);font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.3;letter-spacing:.1em;opacity:0;transform:rotate(-14deg) scale(1.8);transition:opacity .25s,transform .25s}
+.stamp.on{opacity:1;transform:rotate(-14deg) scale(1)}
+.nameline{width:100%;max-width:400px;display:flex;align-items:baseline;gap:10px;font-size:15px}
+.nameline input{flex:1;background:transparent;border:none;border-bottom:1px solid var(--ink);font-family:inherit;font-size:18px;color:var(--ink);padding:4px 2px;outline:none}
+.fields{display:flex;flex-direction:column;gap:18px}
+.field label{display:block;font-size:13px;letter-spacing:.2em;color:#6a5440;margin-bottom:8px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{border:1px solid var(--line);background:rgba(255,255,255,.25);padding:7px 14px;font-size:14px;color:var(--ink)}
+.opt.sel{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.thumbs .opt{padding:3px;width:62px;height:62px}.thumbs canvas{width:100%;height:100%;display:block}
+.sw{width:30px;height:30px;border:2px solid var(--paper);outline:1px solid var(--line);padding:0}
+.sw.sel{outline:2px solid var(--ink);outline-offset:1px}
+.colorpick{width:30px;height:30px;border:1px dashed var(--line);background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden}
+.colorpick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.confirm{margin-top:8px;align-self:flex-start;background:var(--rust);color:var(--paper);border:none;padding:12px 30px;font-size:15px;letter-spacing:.35em}
+.confirm:disabled{opacity:.4;cursor:default}
+.hint{font-size:12px;color:#7a6550;min-height:1em}
+@media (max-width:720px){.book{grid-template-columns:1fr;gap:18px;padding:16px}.frame,.nameline{max-width:none}}
+
+/* 地窖 */
+#game{flex-direction:column;justify-content:flex-start;padding:max(8px,env(safe-area-inset-top)) 0 8px}
+.stage{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;height:100%}
+.view{position:relative;width:min(100vw,calc(100vh - 210px),720px);aspect-ratio:1;background:#000;overflow:hidden;flex-shrink:0;border:3px solid #000;outline:1px solid #3a2c1f}
+.view img.wall{width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;transition:opacity .35s}
+.hot{position:absolute;background:transparent;border:none;padding:0}
+.debug .hot{background:rgba(255,0,0,.22);outline:1px solid red}
+.arrow{position:absolute;background:rgba(20,14,10,.35);border:none;color:#e8d8b8;font-size:22px;width:38px;height:64px;display:flex;align-items:center;justify-content:center;opacity:.75;z-index:5}
+.arrow:hover{opacity:1}
+.arrow.l{left:0;top:50%;transform:translateY(-50%)}.arrow.r{right:0;top:50%;transform:translateY(-50%)}
+.arrow.u{top:0;left:50%;transform:translateX(-50%);width:64px;height:34px}.arrow.d{bottom:0;left:50%;transform:translateX(-50%);width:64px;height:34px}
+.dim{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s;z-index:8}
+.dim.on{opacity:.92}
+.side{display:contents}
+.inv{display:flex;gap:6px;justify-content:center}
+.slot{width:52px;height:52px;background:#2a1f16;border:3px solid #0d0906;outline:1px solid #5c4630;position:relative;padding:3px;box-shadow:inset 0 0 10px rgba(0,0,0,.8)}
+.slot img,.slot canvas{width:100%;height:100%;object-fit:contain;display:block}
+.slot.sel{outline:2px solid #e2b86a;outline-offset:1px}
+.msg{width:min(100vw,720px);min-height:58px;padding:10px 16px;color:var(--light);font-size:15px;line-height:1.7;text-align:center;letter-spacing:.05em}
+.msg .pan{color:#e2b86a}
+@media (min-width:900px) and (min-aspect-ratio:4/3){
+  .stage{flex-direction:row;justify-content:center;align-items:center;gap:18px}
+  .view{width:min(calc(100vh - 40px),720px)}
+  .side{display:flex;flex-direction:column;gap:14px;width:260px}
+  .inv{flex-direction:column;align-items:center}
+  .slot{width:64px;height:64px}
+  .msg{width:260px;text-align:left}
+}
+
+/* 視窗 */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal.on{display:flex}
+.card{background:var(--paper);border:2px solid var(--line);box-shadow:0 0 0 5px var(--paper2),0 0 0 7px var(--line);padding:18px;max-width:520px;width:100%;text-align:center;position:relative;max-height:94vh;overflow-y:auto}
+.card img,.card canvas{max-width:100%;display:block;margin:0 auto}
+.card .note{font-size:16px;color:var(--ink);margin-top:14px;letter-spacing:.1em}
+.card .sub{font-size:13px;color:#6a5440;margin-top:8px;line-height:1.7}
+.card .row{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.card button.act{background:var(--ink);color:var(--paper);border:none;padding:9px 22px;font-size:14px;letter-spacing:.2em}
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-160%);background:#2a1f16;color:#e2b86a;border:1px solid #5c4630;padding:8px 18px;font-size:14px;letter-spacing:.12em;z-index:60;transition:transform .4s}
+.toast.on{transform:translateX(-50%) translateY(0)}
+
+/* 結局 */
+#ending{flex-direction:column;color:var(--light);text-align:center;padding:24px;gap:18px;overflow-y:auto}
+#ending h2{font-size:22px;letter-spacing:.3em;color:#e2b86a}
+#ending p{font-size:16px;line-height:2;max-width:520px}
+#ending ul{list-style:none;font-size:14px;line-height:2;opacity:.9}
+#ending li.no{opacity:.35}
+#ending{justify-content:flex-start;padding-top:28px}
+#endImg{width:min(88vw,460px);aspect-ratio:1;object-fit:cover;border:3px solid #000;outline:1px solid #5c4630;opacity:0;transition:opacity 2s .6s;flex-shrink:0}
+#endImg.on{opacity:1}
+</style>
+</head>
+<body>
+
+<section id="intro" class="screen">
+  <p>他記得你的樣子嗎？</p>
+  <button class="ghost" id="startBtn">翻開登記簿</button>
+</section>
+
+<section id="creator" class="screen">
+  <div class="book">
+    <h1>無名小鎮　外來者登記簿<small>UMBRIA · REGISTRO DEGLI STRANIERI</small></h1>
+    <div class="portrait-wrap">
+      <div class="frame"><canvas id="portrait" width="640" height="640"></canvas><div class="stamp">已<br>登記</div></div>
+      <div class="nameline"><span>姓名</span><input id="nameInput" maxlength="12" placeholder="請填寫" autocomplete="off"></div>
+      <div class="hint" id="hint"></div>
+    </div>
+    <div class="fields">
+      <div class="field"><label>眼型</label><div class="opts" id="optEye"></div></div>
+      <div class="field"><label>瞳孔</label><div class="opts" id="optPupil"></div></div>
+      <div class="field"><label>瞳色</label><div class="opts" id="optEyeColor"></div></div>
+      <div class="field"><label>髮型</label><div class="opts thumbs" id="optHair"></div></div>
+      <div class="field"><label>髮色</label><div class="opts" id="optHairColor"></div></div>
+      <button class="confirm" id="confirmBtn" disabled>簽名</button>
+    </div>
+  </div>
+</section>
+
+<section id="game" class="screen">
+  <div class="stage">
+    <div class="view" id="view">
+      <img class="wall" id="wallImg" alt="">
+      <div id="hots"></div>
+      <button class="arrow l" id="navL">‹</button>
+      <button class="arrow r" id="navR">›</button>
+      <button class="arrow u" id="navU">︿</button>
+      <button class="arrow d" id="navD">﹀</button>
+      <div class="dim" id="dim"></div>
+    </div>
+    <div class="side">
+      <div class="inv" id="inv"></div>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+</section>
+
+<section id="ending" class="screen">
+  <img id="endImg" alt="">
+  <h2 id="endTitle"></h2>
+  <p id="endText"></p>
+  <ul id="achList"></ul>
+  <div id="codeBox"></div>
+  <button class="ghost" id="againBtn">再進一次地窖</button>
+</section>
+
+<div class="modal" id="modal"><div class="card" id="card"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 捏人 ============ */
+const A='assets/creator/';
+const EYES=[{id:'m',label:'銳利'},{id:'f',label:'柔和'}];
+const PUPILS=[{id:'round',label:'圓瞳'},{id:'goat',label:'橫瞳'},{id:'slit',label:'豎瞳'}];
+const HAIRS=[{id:'hair1',file:'hair1_short',label:'短髮'},{id:'hair2',file:'hair2_long',label:'長髮'},{id:'hair3',file:'hair3_curly',label:'捲髮'},{id:'hair4',file:'hair4_ponytail',label:'馬尾'}];
+const EYE_COLORS=['#7a4a26','#8a1f2e','#3f6b3a','#4f6f8f','#2c2420','#b8892e'];
+const HAIR_COLORS=['#2b2522','#5a3a26','#b0602e','#e3c98c','#d9d4cc','#7a2834','#7f93ad'];
+const state={eye:'m',pupil:'round',eyeColor:EYE_COLORS[0],hair:'hair1',hairColor:HAIR_COLORS[1],name:''};
+const img={};
+function load(name){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>{img[name]=i;res()};i.onerror=rej;i.src=A+name+'.png'})}
+async function loadAll(){const names=['base_m','base_f','hl_m','hl_f','hair1','hair2','hair3','hair4'];
+  for(const g of ['m','f'])for(const p of ['round','goat','slit'])names.push(`iris_${g}_${p}`);await Promise.all(names.map(load))}
+const tmp=document.createElement('canvas');tmp.width=tmp.height=640;const tctx=tmp.getContext('2d');
+function tinted(layer,color){tctx.globalCompositeOperation='source-over';tctx.clearRect(0,0,640,640);tctx.drawImage(layer,0,0,640,640);
+  tctx.globalCompositeOperation='multiply';tctx.fillStyle=color;tctx.fillRect(0,0,640,640);
+  tctx.globalCompositeOperation='destination-in';tctx.drawImage(layer,0,0,640,640);tctx.globalCompositeOperation='source-over';return tmp}
+function drawPerson(ctx,s,size){ctx.clearRect(0,0,size,size);ctx.drawImage(img['base_'+s.eye],0,0,size,size);
+  ctx.drawImage(tinted(img[`iris_${s.eye}_${s.pupil}`],s.eyeColor),0,0,size,size);ctx.drawImage(img['hl_'+s.eye],0,0,size,size);
+  ctx.drawImage(tinted(img[s.hair],s.hairColor),0,0,size,size)}
+const pctx=document.getElementById('portrait').getContext('2d');
+function render(){drawPerson(pctx,state,640);
+  document.querySelectorAll('#optHair canvas').forEach(c=>{const x=c.getContext('2d');const big=document.createElement('canvas');big.width=big.height=640;
+    drawPerson(big.getContext('2d'),{...state,hair:c.dataset.hair},640);x.clearRect(0,0,c.width,c.height);x.drawImage(big,150,30,340,340,0,0,c.width,c.height)})}
+function mark(el,v){el.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('sel',b.dataset.v===v));const cp=el.querySelector('.colorpick');if(cp&&v!==null)cp.style.outline=''}
+function buildOpts(el,list,key){el.innerHTML='';list.forEach(o=>{const b=document.createElement('button');b.className='opt';b.textContent=o.label;b.dataset.v=o.id;
+  b.onclick=()=>{state[key]=o.id;mark(el,o.id);render()};el.appendChild(b)});mark(el,state[key])}
+function buildHair(el){el.innerHTML='';HAIRS.forEach(o=>{const b=document.createElement('button');b.className='opt';b.dataset.v=o.id;b.title=o.label;
+  const c=document.createElement('canvas');c.width=c.height=112;c.dataset.hair=o.id;b.appendChild(c);b.onclick=()=>{state.hair=o.id;mark(el,o.id);render()};el.appendChild(b)});mark(el,state.hair)}
+function buildColors(el,list,key){el.innerHTML='';list.forEach(col=>{const b=document.createElement('button');b.className='sw';b.style.background=col;b.dataset.v=col;
+  b.onclick=()=>{state[key]=col;mark(el,col);render()};el.appendChild(b)});
+  const p=document.createElement('label');p.className='colorpick';p.title='自訂顏色';const inp=document.createElement('input');inp.type='color';inp.value=state[key];
+  inp.oninput=()=>{state[key]=inp.value;mark(el,null);p.style.outline='2px solid var(--ink)';render()};p.appendChild(inp);el.appendChild(p);mark(el,state[key])}
+function show(id){document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('show');setTimeout(()=>{if(!s.classList.contains('show'))s.classList.remove('on')},800)});
+  const el=document.getElementById(id);el.classList.add('on');requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')))}
+function sketchPath(s){const h=HAIRS.find(x=>x.id===s.hair).file;return `assets/sketches/${s.eye}_${h}_${s.pupil}.jpg`}
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ============ 遊戲設定（文案與座標都可直接改這裡）============ */
+// 熱點座標用百分比：[左, 上, 寬, 高]。網址加 ?debug 會顯示紅框方便對位。
+const WALLS={
+  north:{img:'north',left:'west',right:'east',up:true},
+  east:{img:'east',left:'north',right:'south',up:true},
+  south:{img:'south',left:'east',right:'west',up:true},
+  west:{img:'west',left:'south',right:'north',up:true},
+  ceiling:{img:'ceiling',down:true}
+};
+const HOTS={
+  north:[{id:'drawer',box:[55,61,18,9]},{id:'basket',box:[86,57,13,23]},{id:'bed',box:[2,49,48,40]},{id:'nbooks',box:[60,51,12,9]}],
+  east:[{id:'grille',box:[66,50,30,33]},{id:'lamp',box:[7,32,16,22]},{id:'rack',box:[33,32,29,30]}],
+  south:[{id:'door',box:[75,34,22,50]},{id:'trunk',box:[29,70,16,12]},{id:'brushjar',box:[36,48,7,10]},{id:'shelf',box:[1,24,22,50]}],
+  west:[{id:'table',box:[13,54,56,12]},{id:'canvas',box:[71,44,23,35]},{id:'chair',box:[30,58,17,25]}],
+  ceiling:[{id:'hatch',box:[33,32,34,34]}]
+};
+const ITEMS={
+  key:{name:'生鏽的小鑰匙',desc:'很輕，齒已經磨圓了。'},
+  brush:{name:'畫筆',desc:'筆毛乾硬，沾著一點赭色。'},
+  paper:{name:'空白畫紙',desc:'捲得很緊，紙邊有點發黃。'},
+  drawing:{name:'你的畫',desc:'你畫了他。畫得不像，但你認得出來。'}
+};
+const PAN_NOTE={round:'終於畫完了。',goat:'同一種眼睛。',slit:'夜裡你看得比我清楚。'};
+const ACH={
+  portrait:{name:'第一張人像',desc:'翻過面壁的畫布。他從沒畫過人。'},
+  futile:{name:'白費力氣',desc:'鑰匙試過門，也試過柵欄。'},
+  leave:{name:'走出去',desc:'門開著的時候，你走了。'},
+  stay:{name:'留下來',desc:'門開著的時候，你沒有走。'}
+};
+
+
+/* ============ 通關碼 ============ */
+// 字庫：翁布里亞的東西。改字庫或 SALT 會讓舊碼全部失效，活動開始後不要動。
+const CODE_WORDS=[
+ ['OLIVO','橄欖樹'],['TARTUFO','松露'],['LENTICCHIA','扁豆'],['SAGRANTINO','薩格蘭蒂諾酒'],['MAIOLICA','彩陶'],['CIPRESSO','柏樹'],
+ ['GIRASOLE','向日葵'],['PORCHETTA','烤乳豬'],['CINGHIALE','野豬'],['STRANGOZZI','手擀麵'],['TORCOLO','環形蛋糕'],['ROSMARINO','迷迭香'],
+ ['ALLORO','月桂'],['VENDEMMIA','葡萄收成'],['FRANTOIO','榨油坊'],['TEVERE','台伯河'],['TRASIMENO','特拉西梅諾湖'],['SUBASIO','蘇巴修山'],
+ ['MARMORE','馬莫雷瀑布'],['ASSISI','阿西西'],['PERUGIA','佩魯賈'],['GUBBIO','古比奧'],['ORVIETO','奧維多'],['SPOLETO','斯波萊托'],
+ ['TODI','托迪'],['NORCIA','諾爾恰'],['DERUTA','德魯塔'],['MONTEFALCO','蒙特法爾科'],['CASTELLUCCIO','卡斯特盧喬'],['CERI','蠟燭塔'],
+ ['TRAMONTO','夕陽'],['CAMPANILE','鐘樓']];
+const SALT='pan-1117';
+function hashName(name){const t=SALT+'|'+name.normalize('NFKC').trim().toLowerCase();let h=2166136261>>>0;
+  for(const ch of t){h^=ch.codePointAt(0);h=Math.imul(h,16777619)>>>0}
+  h^=h>>>13;h=Math.imul(h,1274126177)>>>0;h^=h>>>16;return h>>>0}
+function passCode(name){const h=hashName(name);const a=h%32,b=(h>>>5)%32,n=10+((h>>>10)%90);
+  const w1=CODE_WORDS[a],w2=CODE_WORDS[b===a?(b+7)%32:b];return {text:`${w1[0]}-${w2[0]}-${n}`,gloss:`${w1[1]}・${w2[1]}・${n}`}}
+const REQUIRED=['portrait','futile'];// 再加上任一結局
+function qualified(){return REQUIRED.every(k=>ach[k])&&(ach.leave||ach.stay)}
+
+/* ============ 遊戲狀態 ============ */
+let G;
+function newGame(){G={wall:'north',from:'north',inv:[],sel:null,flags:{},busy:false}}
+const ach=store.get('pan_ach',{});
+function unlock(id){if(ach[id])return;ach[id]=1;store.set('pan_ach',ach);toast('成就解鎖：'+ACH[id].name)}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2600)}
+function say(t){document.getElementById('msg').innerHTML=t}
+
+/* 物品圖示（鑰匙暫用向量圖，畫筆與畫紙暫用牆面圖裁切） */
+const keySVG='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g stroke="#1a120c" stroke-width="5" fill="#8a5a32" stroke-linejoin="round"><circle cx="30" cy="38" r="18"/><circle cx="30" cy="38" r="7" fill="#2a1f16"/><path d="M42 50 L82 82 L76 88 L70 82 L64 88 L58 82 L40 60Z"/></g></svg>');
+const ICON={key:keySVG,brush:'assets/items/brush.png',paper:'assets/items/paper.png'};
+function drawingIcon(){const c=document.createElement('canvas');c.width=c.height=120;const x=c.getContext('2d');
+  x.fillStyle='#e8dcc0';x.fillRect(8,8,104,104);x.strokeStyle='#2a1f16';x.lineWidth=3;x.strokeRect(8,8,104,104);
+  x.lineWidth=2.5;x.beginPath();x.ellipse(60,64,19,24,0,0,Math.PI*2);x.stroke();
+  x.beginPath();x.moveTo(30,46);x.lineTo(90,46);x.moveTo(41,46);x.quadraticCurveTo(43,18,60,18);x.quadraticCurveTo(77,18,79,46);x.stroke();
+  x.beginPath();x.moveTo(50,62);x.lineTo(56,62);x.moveTo(64,62);x.lineTo(70,62);x.moveTo(55,78);x.lineTo(65,78);x.stroke();return c}
+function itemEl(id){if(id==='drawing')return drawingIcon();const i=new Image();i.src=ICON[id];return i}
+
+function renderInv(){const inv=document.getElementById('inv');inv.innerHTML='';
+  for(let i=0;i<6;i++){const s=document.createElement('button');s.className='slot';const id=G.inv[i];
+    if(id){s.appendChild(itemEl(id));if(G.sel===id)s.classList.add('sel');s.onclick=()=>clickItem(id)}
+    inv.appendChild(s)}}
+function give(id){if(!G.inv.includes(id))G.inv.push(id);renderInv()}
+function take(id){G.inv=G.inv.filter(x=>x!==id);if(G.sel===id)G.sel=null;renderInv()}
+function clickItem(id){if(G.busy)return;
+  if(G.sel===id){openItem(id);return}
+  if(G.sel){combine(G.sel,id);return}
+  G.sel=id;renderInv();say(`拿著：${ITEMS[id].name}<br><small style="opacity:.6">再點一次放大看，點別的物品試著組合</small>`)}
+function combine(a,b){const pair=[a,b].sort().join('+');
+  if(pair==='brush+paper'){take('brush');take('paper');give('drawing');say('你攤開紙。筆毛上那點乾掉的赭色，剛好夠畫一個人。<br>你畫了他。');return}
+  G.sel=b;renderInv();say('這兩樣湊不到一起。')}
+function openItem(id){const card=document.getElementById('card');const icon=itemEl(id);icon.style.maxHeight='220px';icon.style.width='auto';
+  card.innerHTML='';card.appendChild(icon);
+  card.insertAdjacentHTML('beforeend',`<div class="note">${ITEMS[id].name}</div><div class="sub">${ITEMS[id].desc}</div><div class="row"><button class="act" onclick="closeModal()">放下</button></div>`);
+  document.getElementById('modal').classList.add('on')}
+function closeModal(){document.getElementById('modal').classList.remove('on')}
+document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
+
+/* 場景 */
+const DEBUG=location.search.includes('debug');
+function go(w){if(G.busy)return;G.wall=w;const W=WALLS[w];const im=document.getElementById('wallImg');im.style.opacity=0;
+  setTimeout(()=>{im.onload=()=>im.style.opacity=1;im.src=`assets/walls/${W.img}.jpg`},180);
+  navL.style.display=W.left?'':'none';navR.style.display=W.right?'':'none';navU.style.display=W.up?'':'none';navD.style.display=W.down?'':'none';
+  const hots=document.getElementById('hots');hots.innerHTML='';
+  HOTS[w].forEach(h=>{const b=document.createElement('button');b.className='hot';const [l,t,wd,ht]=h.box;
+    Object.assign(b.style,{left:l+'%',top:t+'%',width:wd+'%',height:ht+'%'});if(DEBUG)b.title=h.id;b.onclick=()=>act(h.id);hots.appendChild(b)})}
+const navL=document.getElementById('navL'),navR=document.getElementById('navR'),navU=document.getElementById('navU'),navD=document.getElementById('navD');
+navL.onclick=()=>go(WALLS[G.wall].left);navR.onclick=()=>go(WALLS[G.wall].right);
+navU.onclick=()=>{G.from=G.wall;go('ceiling')};navD.onclick=()=>go(G.from);
+if(DEBUG)document.getElementById('view').classList.add('debug');
+
+/* 互動 */
+function act(id){if(G.busy)return;const s=G.sel,f=G.flags;
+  switch(id){
+  case 'drawer':
+    if(!f.drawer){f.drawer=1;give('key');say('抽屜裡只有一把生鏽的小鑰匙。<br>像是有人故意留下的。')}
+    else say('抽屜空了。');break;
+  case 'basket':
+    if(!f.basket){f.basket=1;give('paper');say('籃子裡捲著幾張空白畫紙。你抽了一張。')}
+    else say('剩下的紙都受潮黏在一起了。');break;
+  case 'bed':say(f.bed?'床鋪得很整齊，像沒人睡過。':'你醒來的地方。<br>毯子是新的，摺得比你自己摺得還好。');f.bed=1;break;
+  case 'nbooks':say('床頭的書都是你會挑的那種。<br>你沒告訴過任何人你喜歡讀什麼。');break;
+  case 'grille':
+    if(s==='key'){f.triedGrille=1;say('鑰匙插不進去。這道鎖比鑰匙老得多。<br>柵欄後面的黑暗裡，好像還有房間。');checkFutile()}
+    else say('鐵柵欄後面一片黑。<br>你把手伸進去，摸不到牆。');break;
+  case 'lamp':say('油燈不能熄。<br>你試過了，火苗連晃都沒晃。');break;
+  case 'rack':say('酒瓶上積著灰，標籤是手寫的義大利文。<br>年份那欄空著。');break;
+  case 'door':
+    if(s==='key'){f.triedDoor=1;say('鑰匙在這個鎖孔裡顯得太小了。<br>門很厚，聽不見外面任何聲音。');checkFutile()}
+    else say('門推不動。<br>鎖孔在你這一側，鑰匙不在。');break;
+  case 'trunk':
+    if(f.trunk){say('皮箱裡空了，只剩一股松節油的味道。');break}
+    if(s==='key'){f.trunk=1;take('key');give('brush');say('鑰匙轉得很順，像常常有人開。<br>皮箱裡放著一支畫筆。')}
+    else say('皮箱上了鎖。鎖孔很小。');break;
+  case 'brushjar':say('罐子裡的畫筆都洗乾淨了，筆毛綁著，不給拿。<br>他不會讓你用沒準備好的筆。');break;
+  case 'shelf':say('醃漬罐排得很整齊，每一罐都寫了日期。<br>最新的那罐，是你來的那天。');break;
+  case 'table':
+    if(f.gift){say('石桌上空空的。你放的畫已經不在了。');break}
+    if(s==='drawing'){f.gift=1;take('drawing');giftScene()}
+    else say('他每次下來，都把東西放在這張桌上。<br>書、一塊布、一碗還溫著的菜。');break;
+  case 'chair':say('只有一張椅子。<br>他下來的時候都站著。');break;
+  case 'canvas':flipCanvas();break;
+  case 'hatch':if(f.open)openHatch();else say('門栓在外面。<br>從這一側，連把手都沒有。');break;
+  }
+}
+function checkFutile(){if(G.flags.triedDoor&&G.flags.triedGrille)unlock('futile')}
+
+function giftScene(){G.busy=true;const dim=document.getElementById('dim');say('你把畫放在桌上，畫面朝上。');
+  const steps=[[1600,()=>{dim.classList.add('on');say('你等著。')}],[3600,()=>say('油燈的油少了一截。')],
+    [5800,()=>say('頭頂傳來腳步聲，停在艙口上方很久。')],[8200,()=>say('然後是門栓滑開的聲音。')],
+    [10400,()=>{dim.classList.remove('on');G.flags.open=1;G.busy=false;say('他沒有下來。')}]];
+  steps.forEach(([t,fn])=>setTimeout(fn,t))}
+
+function flipCanvas(){unlock('portrait');const card=document.getElementById('card');
+  card.innerHTML=`<img src="${sketchPath(state)}" alt=""><div class="note">「${PAN_NOTE[state.pupil]}」</div><div class="sub">畫布背面是你。<br>他說過他從不畫人。</div><div class="row"><button class="act" onclick="closeModal()">翻回去</button></div>`;
+  document.getElementById('modal').classList.add('on');say('你把畫布翻回去，面向牆壁。<br>像他放的那樣。')}
+
+function openHatch(){const card=document.getElementById('card');
+  card.innerHTML=`<div class="note" style="margin-top:0">艙口開著。</div><div class="sub">光從上面落下來，梯子已經放好了。<br>沒有人在上面等你。</div><div class="row"><button class="act" onclick="ending('leave')">往上走</button><button class="act" onclick="ending('stay')">留在這裡</button></div>`;
+  document.getElementById('modal').classList.add('on')}
+
+function ending(type){closeModal();unlock(type);
+  const T={leave:['走出去','外面是傍晚。<br>他坐在畫室裡，沒有回頭。<br>桌上攤著你畫的那張，旁邊多了一行字。<br><br><span style="color:#e2b86a">「你想要什麼。」</span>'],
+           stay:['留下來','你坐回床邊。<br>過了很久，梯子上傳來腳步聲。<br>他停在梯子一半，看著你，又抬頭看了一眼開著的艙口。<br><br><span style="color:#e2b86a">「你想要什麼。」</span><br><br>這是他第一次真的在問。']};
+  const ei=document.getElementById('endImg');ei.classList.remove('on');ei.onload=()=>ei.classList.add('on');ei.src=`assets/endings/${type}.jpg`;
+  document.getElementById('endTitle').textContent=T[type][0];
+  document.getElementById('endText').innerHTML=T[type][1];
+  document.getElementById('achList').innerHTML=Object.entries(ACH).map(([k,v])=>`<li class="${ach[k]?'':'no'}">${ach[k]?'◆':'◇'} ${v.name}　<small>${ach[k]?v.desc:'？？？'}</small></li>`).join('');
+  const box=document.getElementById('codeBox');
+  if(qualified()){const c=passCode(state.name);
+    box.innerHTML=`<div style="border:1px solid #5c4630;padding:14px 18px;max-width:420px;margin:auto;background:#1e1711"><div style="font-size:12px;letter-spacing:.3em;opacity:.7">${state.name} 的通關碼</div><div style="font-size:20px;letter-spacing:.12em;color:#e2b86a;margin:8px 0;font-family:monospace;word-break:break-all">${c.text}</div><div style="font-size:13px;opacity:.75">${c.gloss}</div><div style="font-size:12px;opacity:.6;margin-top:10px;line-height:1.7">截圖或抄下這組碼，連同你在登記簿上簽的名字一起回報。<br>名字要一字不差，碼才對得上。</div></div>`}
+  else{const miss=REQUIRED.filter(k=>!ach[k]).length;box.innerHTML=`<div style="font-size:13px;opacity:.6">還有 ${miss} 個成就沒找到。全部找齊，結局會出現通關碼。</div>`}
+  show('ending')}
+document.getElementById('againBtn').onclick=()=>startGame();
+
+function startGame(){newGame();renderInv();go('north');show('game');say(`${state.name}。<br>醒來的時候，你在地窖裡。`)}
+
+/* ============ 啟動 ============ */
+const nameInput=document.getElementById('nameInput'),confirmBtn=document.getElementById('confirmBtn'),hint=document.getElementById('hint');
+nameInput.oninput=()=>{state.name=nameInput.value.trim();confirmBtn.disabled=!state.name;hint.textContent=''};
+confirmBtn.onclick=()=>{if(!state.name){hint.textContent='登記簿上不能沒有名字。';return}
+  store.set('pan_player',state);confirmBtn.disabled=true;nameInput.disabled=true;document.querySelector('.stamp').classList.add('on');
+  setTimeout(startGame,1300)};
+document.getElementById('startBtn').onclick=()=>show('creator');
+window.PAN={state,G:()=>G,go,act};
+
+(async()=>{show('intro');
+  try{await loadAll();buildOpts(document.getElementById('optEye'),EYES,'eye');buildOpts(document.getElementById('optPupil'),PUPILS,'pupil');
+    buildColors(document.getElementById('optEyeColor'),EYE_COLORS,'eyeColor');buildHair(document.getElementById('optHair'));
+    buildColors(document.getElementById('optHairColor'),HAIR_COLORS,'hairColor');render()}
+  catch(e){document.querySelector('#intro p').textContent='素材載入失敗，請重新整理。'}})();
+</script>
+</body>
+</html>
