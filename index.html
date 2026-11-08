@@ -91,6 +91,10 @@ button{font-family:inherit;cursor:pointer}
 
 #muteBtn{position:fixed;top:max(10px,env(safe-area-inset-top));right:10px;z-index:70;width:38px;height:38px;border-radius:50%;background:rgba(20,14,10,.6);border:1px solid #5c4630;color:#e2b86a;font-size:17px;display:none}
 #muteBtn.on{display:block}#muteBtn.off{color:#6d5a42;text-decoration:line-through}
+.lock{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.wheel{display:flex;flex-direction:column;align-items:center;background:#3a2b1c;border:2px solid #1a120c;outline:1px solid #b8894a;padding:4px 2px;width:50px}
+.wheel button{background:none;border:none;color:#e2b86a;font-size:18px;width:100%;padding:4px 0}
+.wheel span{font-size:28px;color:#f0dcae;font-family:Georgia,serif;line-height:1.3}
 /* 結局 */
 #ending{flex-direction:column;color:var(--light);text-align:center;padding:24px;gap:18px;overflow-y:auto}
 #ending h2{font-size:22px;letter-spacing:.3em;color:#e2b86a}
@@ -152,12 +156,14 @@ button{font-family:inherit;cursor:pointer}
   <p id="endText"></p>
   <ul id="achList"></ul>
   <div id="codeBox"></div>
+  <button class="ghost" id="nightBtn" style="display:none">那天晚上</button>
   <button class="ghost" id="againBtn">再進一次地窖</button>
 </section>
 
 <div class="modal" id="modal"><div class="card" id="card"></div></div>
 <div class="toast" id="toast"></div>
 <audio id="bgm" src="assets/audio/cellar.mp3" loop preload="auto"></audio>
+<audio id="endbgm" preload="auto"></audio>
 <button id="muteBtn" aria-label="靜音">♪</button>
 
 <script>
@@ -208,26 +214,44 @@ const WALLS={
   ceiling:{img:'ceiling',down:true}
 };
 const HOTS={
-  north:[{id:'drawer',box:[55,61,18,9]},{id:'basket',box:[86,57,13,23]},{id:'bed',box:[2,49,48,40]},{id:'nbooks',box:[60,51,12,9]}],
+  north:[{id:'bed',box:[2,49,48,40]},{id:'drawer',box:[54,60,17,7]},{id:'nbooks',box:[61,51,11,8]},{id:'basket',box:[85,58,14,21]},{id:'flowers',box:[62,26,9,20]}],
   east:[{id:'grille',box:[66,50,30,33]},{id:'lamp',box:[7,32,16,22]},{id:'rack',box:[33,32,29,30]}],
-  south:[{id:'door',box:[75,34,22,50]},{id:'trunk',box:[29,70,16,12]},{id:'brushjar',box:[36,48,7,10]},{id:'shelf',box:[1,24,22,50]}],
-  west:[{id:'table',box:[13,54,56,12]},{id:'canvas',box:[71,44,23,35]},{id:'chair',box:[30,58,17,25]}],
+  south:[{id:'door',box:[75,34,22,50]},{id:'trunk',box:[29,67,19,15]},{id:'brushjar',box:[37,48,6,10]},{id:'jug',box:[62,45,9,13]},{id:'shelf',box:[1,24,22,50]}],
+  west:[{id:'chair',box:[30,60,17,23]},{id:'table',box:[13,55,40,11]},{id:'dish',box:[54,50,10,9]},{id:'box',box:[76,25,11,7]},{id:'canvas',box:[71,44,23,35]}],
   ceiling:[{id:'hatch',box:[33,32,34,34]}]
 };
+const CODE='1117';
 const ITEMS={
-  key:{name:'生鏽的小鑰匙',desc:'很輕，齒已經磨圓了。'},
-  brush:{name:'畫筆',desc:'筆毛乾硬，沾著一點赭色。'},
-  paper:{name:'空白畫紙',desc:'捲得很緊，紙邊有點發黃。'},
-  drawing:{name:'你的畫',desc:'你畫了他。畫得不像，但你認得出來。'}
+  key:{name:'生鏽的小鑰匙',desc:'很輕，齒已經磨圓了。',icon:'key'},
+  stiffbrush:{name:'乾硬的畫筆',desc:'筆毛硬得像一截木頭，尖端沾著乾掉的赭色。',icon:'brush',filter:'saturate(.4) brightness(.8)'},
+  brush:{name:'泡軟的畫筆',desc:'筆毛吸飽了油，赭色又化開了。聞起來像他。',icon:'brush'},
+  wetpaper:{name:'受潮的畫紙',desc:'摸起來冰冰的，邊緣都軟了。這樣畫不上去。',icon:'paper',filter:'saturate(.5) brightness(.75) hue-rotate(-10deg)'},
+  paper:{name:'烘乾的畫紙',desc:'被油燈烤得有點捲，但夠平了。',icon:'paper'},
+  drawing:{name:'你的畫',desc:'你畫了他。比你以為的還像。',icon:'drawing'},
+  candle:{name:'小蠟燭',desc:'紅白條紋的蠟燭，像插在生日蛋糕上的那種。<br>燭芯是新的，從來沒點過。',icon:'candle'},
+  litcandle:{name:'點著的蠟燭',desc:'火苗很小，手一晃就斜過去，又站回來。',icon:'candle_lit'}
 };
 const PAN_NOTE={round:'終於畫完了。',goat:'同一種眼睛。',slit:'夜裡你看得比我清楚。'};
 const ACH={
   portrait:{name:'第一張人像',desc:'翻過面壁的畫布。他從沒畫過人。'},
   futile:{name:'白費力氣',desc:'鑰匙試過門，也試過柵欄。'},
+  birthday:{name:'生日快樂',desc:'在多出來的那道菜旁邊，點了一根蠟燭。'},
   leave:{name:'走出去',desc:'門開著的時候，你走了。'},
   stay:{name:'留下來',desc:'門開著的時候，你沒有走。'}
 };
-
+// 同一處點三次沒有進展時，浮出的提示（金色字）
+const HINTS={
+  drawer:()=>!G.flags.drawer&&'鎖是四位數。<br>這地窖裡，有人在酒瓶和醃漬罐上寫過數字。',
+  rack:()=>!G.flags.drawer&&'只有那瓶擦得特別乾淨。<br>XI，羅馬數字。',
+  shelf:()=>!G.flags.drawer&&'十七號。最新的一罐。<br>他不記年份，只記日子。',
+  lamp:()=>G.inv.includes('wetpaper')&&'油燈很燙。<br>濕的東西拿近一點，很快就乾了。',
+  brushjar:()=>G.inv.includes('stiffbrush')&&'這些筆是泡過油才變軟的。<br>桌上那個陶罐，聞起來是亞麻仁油。',
+  jug:()=>G.inv.includes('stiffbrush')&&'硬掉的筆，泡一泡就好了。',
+  table:()=>G.inv.includes('drawing')&&'他每次下來，都放東西在這裡。<br>也許這次換你放。',
+  dish:()=>!G.flags.birthday&&G.flags.drawer&&'一千一百一十七。<br>十一月十七日。今天多了一道菜，不是沒有原因的。',
+  box:()=>!G.flags.box&&'架子有點高，要踮腳。',
+  hatch:()=>!G.flags.open&&'門栓在外面。只有他能開。<br>他得先有一個下來的理由。'
+};
 
 /* ============ 通關碼 ============ */
 // 字庫：翁布里亞的東西。改字庫或 SALT 會讓舊碼全部失效，活動開始後不要動。
@@ -244,7 +268,7 @@ function hashName(name){const t=SALT+'|'+name.normalize('NFKC').trim().toLowerCa
   h^=h>>>13;h=Math.imul(h,1274126177)>>>0;h^=h>>>16;return h>>>0}
 function passCode(name){const h=hashName(name);const a=h%32,b=(h>>>5)%32,n=10+((h>>>10)%90);
   const w1=CODE_WORDS[a],w2=CODE_WORDS[b===a?(b+7)%32:b];return {text:`${w1[0]}-${w2[0]}-${n}`,gloss:`${w1[1]}・${w2[1]}・${n}`}}
-const REQUIRED=['portrait','futile'];// 再加上任一結局
+const REQUIRED=['portrait','futile','birthday'];// 再加上任一結局
 function qualified(){return REQUIRED.every(k=>ach[k])&&(ach.leave||ach.stay)}
 
 /* ============ 遊戲狀態 ============ */
@@ -255,28 +279,42 @@ function unlock(id){if(ach[id])return;ach[id]=1;store.set('pan_ach',ach);toast('
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2600)}
 function say(t){document.getElementById('msg').innerHTML=t}
 
-/* 物品圖示（鑰匙暫用向量圖，畫筆與畫紙暫用牆面圖裁切） */
-const keySVG='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g stroke="#1a120c" stroke-width="5" fill="#8a5a32" stroke-linejoin="round"><circle cx="30" cy="38" r="18"/><circle cx="30" cy="38" r="7" fill="#2a1f16"/><path d="M42 50 L82 82 L76 88 L70 82 L64 88 L58 82 L40 60Z"/></g></svg>');
-const ICON={key:keySVG,brush:'assets/items/brush.png',paper:'assets/items/paper.png'};
-function drawingIcon(){const c=document.createElement('canvas');c.width=c.height=120;const x=c.getContext('2d');
-  x.fillStyle='#e8dcc0';x.fillRect(8,8,104,104);x.strokeStyle='#2a1f16';x.lineWidth=3;x.strokeRect(8,8,104,104);
-  x.lineWidth=2.5;x.beginPath();x.ellipse(60,64,19,24,0,0,Math.PI*2);x.stroke();
-  x.beginPath();x.moveTo(30,46);x.lineTo(90,46);x.moveTo(41,46);x.quadraticCurveTo(43,18,60,18);x.quadraticCurveTo(77,18,79,46);x.stroke();
-  x.beginPath();x.moveTo(50,62);x.lineTo(56,62);x.moveTo(64,62);x.lineTo(70,62);x.moveTo(55,78);x.lineTo(65,78);x.stroke();return c}
-function itemEl(id){if(id==='drawing')return drawingIcon();const i=new Image();i.src=ICON[id];return i}
+/* 物品圖示 */
+const SVG={
+ candle:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g stroke="#2a1a10" stroke-width="5" stroke-linejoin="round"><ellipse cx="50" cy="86" rx="30" ry="8" fill="#8a5a32"/><rect x="36" y="34" width="28" height="50" rx="4" fill="#efe1c0"/><path d="M36 40 q14 8 28 0" fill="none"/><path d="M50 34 v-12" fill="none"/></g></svg>',
+ lit:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g stroke="#2a1a10" stroke-width="5" stroke-linejoin="round"><ellipse cx="50" cy="86" rx="30" ry="8" fill="#8a5a32"/><rect x="36" y="40" width="28" height="44" rx="4" fill="#efe1c0"/><path d="M36 46 q14 8 28 0" fill="none"/><path d="M50 40 v-8" fill="none"/><path d="M50 6 C62 20 60 32 50 34 C40 32 38 20 50 6Z" fill="#f3a63b"/></g><path d="M50 18 C55 25 54 30 50 31 C46 30 45 25 50 18Z" fill="#fff2b0"/></svg>'
+};
+function itemEl(id){const it=ITEMS[id];const i=new Image();
+  i.src=it.icon.startsWith('svg:')?'data:image/svg+xml,'+encodeURIComponent(SVG[it.icon.slice(4)]):`assets/items/${it.icon}.png`;
+  if(it.filter)i.style.filter=it.filter;i.alt=it.name;return i}
 
 function renderInv(){const inv=document.getElementById('inv');inv.innerHTML='';
   for(let i=0;i<6;i++){const s=document.createElement('button');s.className='slot';const id=G.inv[i];
     if(id){s.appendChild(itemEl(id));if(G.sel===id)s.classList.add('sel');s.onclick=()=>clickItem(id)}
     inv.appendChild(s)}}
-function give(id){if(!G.inv.includes(id))G.inv.push(id);renderInv()}
+function give(id){if(!G.inv.includes(id))G.inv.push(id);renderInv();progress()}
 function take(id){G.inv=G.inv.filter(x=>x!==id);if(G.sel===id)G.sel=null;renderInv()}
+function swap(a,b){const i=G.inv.indexOf(a);if(i>-1)G.inv[i]=b;else G.inv.push(b);if(G.sel===a)G.sel=null;renderInv();progress()}
+// 物品從熱點掉進物品欄的小動畫
+function dropItem(id,hotId){const src=document.querySelector(`.hot[data-id="${hotId}"]`);G.busy=true;
+  if(!src){give(id);G.busy=false;return}
+  const r=src.getBoundingClientRect(),el=itemEl(id);
+  Object.assign(el.style,{position:'fixed',left:(r.left+r.width/2-28)+'px',top:(r.top+r.height/2-28)+'px',width:'56px',height:'56px',zIndex:40,transition:'transform .45s cubic-bezier(.5,0,1,.6)',pointerEvents:'none'});
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>{el.style.transform=`translateY(${Math.min(140,window.innerHeight-r.bottom)}px) rotate(25deg)`});
+  setTimeout(()=>{const slots=document.querySelectorAll('#inv .slot');const t=slots[Math.min(G.inv.length,5)].getBoundingClientRect();
+    el.style.transition='all .5s ease-in-out';el.style.left=(t.left+t.width/2-28)+'px';el.style.top=(t.top+t.height/2-28)+'px';el.style.transform='rotate(0)'},520);
+  setTimeout(()=>{el.remove();G.busy=false;give(id)},1080)}
+
 function clickItem(id){if(G.busy)return;
   if(G.sel===id){openItem(id);return}
   if(G.sel){combine(G.sel,id);return}
-  G.sel=id;renderInv();say(`拿著：${ITEMS[id].name}<br><small style="opacity:.6">再點一次放大看，點別的物品試著組合</small>`)}
+  G.sel=id;renderInv();say(`拿著：${ITEMS[id].name}<br><small style="opacity:.6">再點一次放大看，點別的物品試著組合，點場景試著使用</small>`)}
 function combine(a,b){const pair=[a,b].sort().join('+');
-  if(pair==='brush+paper'){take('brush');take('paper');give('drawing');say('你攤開紙。筆毛上那點乾掉的赭色，剛好夠畫一個人。<br>你畫了他。');return}
+  if(pair==='brush+paper'){take('brush');take('paper');give('drawing');say('你攤開紙。筆毛上的赭色化開了，剛好夠畫一個人。<br>你畫了他。');return}
+  if(pair==='paper+stiffbrush'){G.sel=null;renderInv();say('筆毛硬得像木頭，在紙上刮出一道白痕，畫不出顏色。');return}
+  if(pair==='brush+wetpaper'||pair==='stiffbrush+wetpaper'){G.sel=null;renderInv();say('紙太濕了，顏料一碰就暈開。');return}
+  if(pair==='candle+drawing'||pair==='drawing+litcandle'){G.sel=null;renderInv();say('蠟燭插不在紙上。<br>它需要一個更好的地方。');return}
   G.sel=b;renderInv();say('這兩樣湊不到一起。')}
 function openItem(id){const card=document.getElementById('card');const icon=itemEl(id);icon.style.maxHeight='220px';icon.style.width='auto';
   card.innerHTML='';card.appendChild(icon);
@@ -292,37 +330,56 @@ function go(w){if(G.busy)return;G.wall=w;const W=WALLS[w];const im=document.getE
   navL.style.display=W.left?'':'none';navR.style.display=W.right?'':'none';navU.style.display=W.up?'':'none';navD.style.display=W.down?'':'none';
   const hots=document.getElementById('hots');hots.innerHTML='';
   HOTS[w].forEach(h=>{const b=document.createElement('button');b.className='hot';const [l,t,wd,ht]=h.box;
-    Object.assign(b.style,{left:l+'%',top:t+'%',width:wd+'%',height:ht+'%'});if(DEBUG)b.title=h.id;b.onclick=()=>act(h.id);hots.appendChild(b)})}
+    Object.assign(b.style,{left:l+'%',top:t+'%',width:wd+'%',height:ht+'%'});b.dataset.id=h.id;if(DEBUG)b.title=h.id;b.onclick=()=>act(h.id);hots.appendChild(b)})}
 const navL=document.getElementById('navL'),navR=document.getElementById('navR'),navU=document.getElementById('navU'),navD=document.getElementById('navD');
 navL.onclick=()=>go(WALLS[G.wall].left);navR.onclick=()=>go(WALLS[G.wall].right);
 navU.onclick=()=>{G.from=G.wall;go('ceiling')};navD.onclick=()=>go(G.from);
 if(DEBUG)document.getElementById('view').classList.add('debug');
 
 /* 互動 */
+let lastHot=null,hotCount=0;
+function progress(){lastHot=null;hotCount=0}
 function act(id){if(G.busy)return;const s=G.sel,f=G.flags;
+  const before=JSON.stringify([G.inv,f]);
+  hotCount=(lastHot===id)?hotCount+1:1;lastHot=id;
   switch(id){
   case 'drawer':
-    if(!f.drawer){f.drawer=1;give('key');say('抽屜裡只有一把生鏽的小鑰匙。<br>像是有人故意留下的。')}
-    else say('抽屜空了。');break;
+    if(f.drawer){say('抽屜空了，只剩一股乾燥的木頭味。');break}
+    openLock();break;
   case 'basket':
-    if(!f.basket){f.basket=1;give('paper');say('籃子裡捲著幾張空白畫紙。你抽了一張。')}
+    if(!f.basket){f.basket=1;give('wetpaper');say('籃子裡捲著幾張畫紙。你抽了一張，摸起來冰冰的。<br>地窖太潮了。')}
     else say('剩下的紙都受潮黏在一起了。');break;
+  case 'flowers':say('乾燥的洋甘菊，花瓣一碰就碎。<br>綁花的繩子上打了一個很工整的結。');break;
   case 'bed':say(f.bed?'床鋪得很整齊，像沒人睡過。':'你醒來的地方。<br>毯子是新的，摺得比你自己摺得還好。');f.bed=1;break;
   case 'nbooks':say('床頭的書都是你會挑的那種。<br>你沒告訴過任何人你喜歡讀什麼。');break;
   case 'grille':
     if(s==='key'){f.triedGrille=1;say('鑰匙插不進去。這道鎖比鑰匙老得多。<br>柵欄後面的黑暗裡，好像還有房間。');checkFutile()}
     else say('鐵柵欄後面一片黑。<br>你把手伸進去，摸不到牆。');break;
-  case 'lamp':say('油燈不能熄。<br>你試過了，火苗連晃都沒晃。');break;
-  case 'rack':say('酒瓶上積著灰，標籤是手寫的義大利文。<br>年份那欄空著。');break;
+  case 'lamp':
+    if(s==='wetpaper'){swap('wetpaper','paper');say('你把紙舉到油燈上方。<br>水氣一點一點散掉，紙邊捲了起來。')}
+    else if(s==='candle'){swap('candle','litcandle');say('燭芯碰到火苗，「嗤」的一聲，點著了。')}
+    else say('油燈不能熄。<br>你試過了，火苗連晃都沒晃。燈罩燙得不能碰。');break;
+  case 'rack':say('酒瓶上積著灰，標籤是手寫的義大利文，年份那欄都空著。<br>只有一瓶擦得特別乾淨，標籤上寫著：<b style="color:#e2b86a">XI</b>');break;
   case 'door':
     if(s==='key'){f.triedDoor=1;say('鑰匙在這個鎖孔裡顯得太小了。<br>門很厚，聽不見外面任何聲音。');checkFutile()}
     else say('門推不動。<br>鎖孔在你這一側，鑰匙不在。');break;
   case 'trunk':
     if(f.trunk){say('皮箱裡空了，只剩一股松節油的味道。');break}
-    if(s==='key'){f.trunk=1;take('key');give('brush');say('鑰匙轉得很順，像常常有人開。<br>皮箱裡放著一支畫筆。')}
+    if(s==='key'){f.trunk=1;G.sel=null;give('stiffbrush');say('鑰匙轉得很順，像常常有人開。<br>皮箱裡放著一支畫筆，筆毛乾成一束。')}
     else say('皮箱上了鎖。鎖孔很小。');break;
-  case 'brushjar':say('罐子裡的畫筆都洗乾淨了，筆毛綁著，不給拿。<br>他不會讓你用沒準備好的筆。');break;
-  case 'shelf':say('醃漬罐排得很整齊，每一罐都寫了日期。<br>最新的那罐，是你來的那天。');break;
+  case 'brushjar':say('罐子裡的畫筆都洗乾淨了，筆毛綁著，不給拿。<br>筆毛軟軟的，帶著油光。');break;
+  case 'jug':
+    if(s==='stiffbrush'){swap('stiffbrush','brush');say('你把筆浸進陶罐。<br>是亞麻仁油。乾掉的赭色慢慢化開，跟他身上的味道一樣。')}
+    else say('陶罐沉甸甸的，罐口有油漬。<br>聞起來是亞麻仁油。');break;
+  case 'shelf':say('醃漬罐排得很整齊，每一罐都寫了日期，沒有年份。<br>最新的那罐寫著：<b style="color:#e2b86a">17</b>，旁邊畫了一顆小小的橄欖。');break;
+  case 'box':
+    if(f.box){say('架上的木盒空了。');break}
+    f.box=1;say('你踮腳去搆架上的小木盒。<br>盒子歪了一下，有東西掉了出來。');dropItem('candle','box');break;
+  case 'dish':
+    if(f.birthday){say('蠟燭還在燒。<br>火苗很小，但一直沒有熄。');break}
+    if(s==='litcandle'){f.birthday=1;take('litcandle');unlock('birthday');say('你把蠟燭立在菜旁邊。<br>沒有人唱歌。地窖很安靜，只有火苗的聲音。')}
+    else if(s==='candle'){say('蠟燭還沒點。<br>這裡唯一的火，在油燈裡。')}
+    else say(f.drawer?'蓋子掀開，是一道你沒吃過的菜，還冒著熱氣。<br>今天比平常多了一道。':'蓋子掀開，是一道你沒吃過的菜，還冒著熱氣。');break;
   case 'table':
     if(f.gift){say('石桌上空空的。你放的畫已經不在了。');break}
     if(s==='drawing'){f.gift=1;take('drawing');giftScene()}
@@ -331,11 +388,26 @@ function act(id){if(G.busy)return;const s=G.sel,f=G.flags;
   case 'canvas':flipCanvas();break;
   case 'hatch':if(f.open)openHatch();else say('門栓在外面。<br>從這一側，連把手都沒有。');break;
   }
+  if(JSON.stringify([G.inv,f])!==before){progress();return}
+  if(hotCount>=3&&HINTS[id]){const h=HINTS[id]();if(h){say(`<span class="pan">${h}</span>`);hotCount=0}}
 }
 function checkFutile(){if(G.flags.triedDoor&&G.flags.triedGrille)unlock('futile')}
 
+/* 密碼鎖 */
+let lockDigits=[0,0,0,0];
+function openLock(){const card=document.getElementById('card');
+  card.innerHTML=`<div class="note" style="margin-top:0">抽屜上了一個黃銅轉盤鎖</div><div class="sub">四個轉輪，數字磨得有點看不清。</div>
+  <div class="lock">${lockDigits.map((d,i)=>`<div class="wheel"><button onclick="spin(${i},1)">︿</button><span id="dg${i}">${d}</span><button onclick="spin(${i},-1)">﹀</button></div>`).join('')}</div>
+  <div class="row"><button class="act" onclick="tryLock()">拉抽屜</button><button class="act" onclick="closeModal()">放開</button></div><div class="sub" id="lockMsg"></div>`;
+  document.getElementById('modal').classList.add('on')}
+function spin(i,d){lockDigits[i]=(lockDigits[i]+d+10)%10;document.getElementById('dg'+i).textContent=lockDigits[i]}
+function tryLock(){if(lockDigits.join('')===CODE){closeModal();G.flags.drawer=1;say('轉輪「喀」一聲對齊了。<br>一千一百一十七。抽屜裡只有一把生鏽的小鑰匙。');dropItem('key','drawer')}
+  else{document.getElementById('lockMsg').textContent='抽屜紋風不動。';
+    if(++tryLock.n>=3){document.getElementById('lockMsg').innerHTML=`<span style="color:#8b3a1a">${HINTS.drawer()}</span>`;tryLock.n=0}}}
+tryLock.n=0;
+
 function giftScene(){G.busy=true;const dim=document.getElementById('dim');say('你把畫放在桌上，畫面朝上。');
-  const steps=[[1600,()=>{dim.classList.add('on');fadeTo(0.15,2500);say('你等著。')}],[3600,()=>say('油燈的油少了一截。')],
+  const steps=[[1600,()=>{dim.classList.add('on');fadeTo(0.15,2500);say('你等著。')}],[3600,()=>say(G.flags.birthday?'油燈的油少了一截。蠟燭燒短了一半。':'油燈的油少了一截。')],
     [5800,()=>say('頭頂傳來腳步聲，停在艙口上方很久。')],[8200,()=>say('然後是門栓滑開的聲音。')],
     [10400,()=>{dim.classList.remove('on');G.flags.open=1;G.busy=false;fadeTo(BGM_VOL,3000);say('他沒有下來。')}]];
   steps.forEach(([t,fn])=>setTimeout(fn,t))}
@@ -348,9 +420,10 @@ function openHatch(){const card=document.getElementById('card');
   card.innerHTML=`<div class="note" style="margin-top:0">艙口開著。</div><div class="sub">光從上面落下來，梯子已經放好了。<br>沒有人在上面等你。</div><div class="row"><button class="act" onclick="ending('leave')">往上走</button><button class="act" onclick="ending('stay')">留在這裡</button></div>`;
   document.getElementById('modal').classList.add('on')}
 
-function ending(type){closeModal();unlock(type);fadeTo(0.25,3000);
+function ending(type){closeModal();unlock(type);playEnding(type);
   const T={leave:['走出去','外面是傍晚。<br>他坐在畫室裡，沒有回頭。<br>桌上攤著你畫的那張，旁邊多了一行字。<br><br><span style="color:#e2b86a">「你想要什麼。」</span>'],
            stay:['留下來','你坐回床邊。<br>過了很久，梯子上傳來腳步聲。<br>他停在梯子一半，看著你，又抬頭看了一眼開著的艙口。<br><br><span style="color:#e2b86a">「你想要什麼。」</span><br><br>這是他第一次真的在問。']};
+  if(G.flags.birthday){T.leave[1]=T.leave[1].replace('旁邊多了一行字。','旁邊多了一行字，和一截燒完的蠟燭。<br>他把它帶上來了。');T.stay[1]+='<br><br>他的目光停在石桌上那截蠟燭。<br>他沒有說今天是什麼日子。<br>他不知道你知道。'}
   const ei=document.getElementById('endImg');ei.classList.remove('on');ei.onload=()=>ei.classList.add('on');ei.src=`assets/endings/${type}.jpg`;
   document.getElementById('endTitle').textContent=T[type][0];
   document.getElementById('endText').innerHTML=T[type][1];
@@ -359,10 +432,14 @@ function ending(type){closeModal();unlock(type);fadeTo(0.25,3000);
   if(qualified()){const c=passCode(state.name);
     box.innerHTML=`<div style="border:1px solid #5c4630;padding:14px 18px;max-width:420px;margin:auto;background:#1e1711"><div style="font-size:12px;letter-spacing:.3em;opacity:.7">${state.name} 的通關碼</div><div style="font-size:20px;letter-spacing:.12em;color:#e2b86a;margin:8px 0;font-family:monospace;word-break:break-all">${c.text}</div><div style="font-size:13px;opacity:.75">${c.gloss}</div><div style="font-size:12px;opacity:.6;margin-top:10px;line-height:1.7">截圖或抄下這組碼，連同你在登記簿上簽的名字一起回報。<br>名字要一字不差，碼才對得上。</div></div>`}
   else{const miss=REQUIRED.filter(k=>!ach[k]).length;box.innerHTML=`<div style="font-size:13px;opacity:.6">還有 ${miss} 個成就沒找到。全部找齊，結局會出現通關碼。</div>`}
+  document.getElementById('nightBtn').style.display=G.flags.birthday?'':'none';
   show('ending')}
 document.getElementById('againBtn').onclick=()=>startGame();
+document.getElementById('nightBtn').onclick=()=>{const card=document.getElementById('card');
+  card.innerHTML=`<img src="assets/endings/birthday.jpg" alt=""><div class="note">那天晚上，他沒有吹熄它。</div><div class="sub">他不知道蠟燭是要許願的。<br>他只是守著，直到它自己燒完。</div><div class="row"><button class="act" onclick="closeModal()">闔上</button></div>`;
+  document.getElementById('modal').classList.add('on')};
 
-function startGame(){fadeTo(BGM_VOL,2000);newGame();renderInv();go('north');show('game');say(`${state.name}。<br>醒來的時候，你在地窖裡。`)}
+function startGame(){if(typeof endbgm!=='undefined'&&!endbgm.paused)stopEnding();fadeTo(BGM_VOL,2000);newGame();renderInv();go('north');show('game');say(`${state.name}。<br>醒來的時候，你在地窖裡。`)}
 
 
 /* ============ 音樂 ============ */
@@ -371,7 +448,10 @@ const BGM_VOL=0.55;let muted=store.get('pan_muted',false);
 function fadeTo(v,ms=1500){clearInterval(fadeTo.t);const start=bgm.volume,t0=performance.now();
   fadeTo.t=setInterval(()=>{const k=Math.min(1,(performance.now()-t0)/ms);bgm.volume=start+(v-start)*k;if(k>=1)clearInterval(fadeTo.t)},40)}
 function bgmStart(){muteBtn.classList.add('on');syncMute();if(muted)return;bgm.volume=0;bgm.play().then(()=>fadeTo(BGM_VOL,2500)).catch(()=>{})}
-function syncMute(){muteBtn.classList.toggle('off',muted);bgm.muted=muted}
+const endbgm=document.getElementById('endbgm');
+function syncMute(){muteBtn.classList.toggle('off',muted);bgm.muted=muted;endbgm.muted=muted}
+function playEnding(type){endbgm.src=`assets/audio/ending_${type}.mp3`;fadeTo(0,1800);setTimeout(()=>{bgm.pause()},1900);endbgm.currentTime=0;endbgm.volume=0.75;setTimeout(()=>{endbgm.play().catch(()=>{})},1200)}
+function stopEnding(){endbgm.pause();endbgm.currentTime=0;if(!muted){bgm.volume=0;bgm.play().catch(()=>{})}}
 muteBtn.onclick=()=>{muted=!muted;store.set('pan_muted',muted);syncMute();if(!muted&&bgm.paused){bgm.volume=0;bgm.play().then(()=>fadeTo(BGM_VOL)).catch(()=>{})}};
 
 /* ============ 啟動 ============ */
