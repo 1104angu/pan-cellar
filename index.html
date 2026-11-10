@@ -329,7 +329,8 @@ function passCode(name){const h=hashName(name);const a=h%32,b=(h>>>5)%32,n=10+((
 // 通關登記表單。FORM_ENTRY 填 entry. 後面的數字；四格都填好才會自動帶入資料
 const FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSc8K6RdLvUzWY3YSO2dTw33-IWNv1cUxD9jK_HxDRI90ub8hQ/viewform';
 const FORM_SHORT='https://forms.gle/coWZqd5FaYtYyGM36';
-const FORM_ENTRY={name:'',code:'',time:'',sig:''};
+const FORM_ENTRY={name:'2091949006',lang:'1950959350',code:'1158939060',time:'1251138463',sig:'223929482'};
+const FORM_LANG={zh:'繁體中文',ja:'日本語',ko:'한국어',en:'English',es:'Español'};
 // 計時：只算遊戲畫面開著的時間，綁定暱稱，第一次通關後鎖定
 let RUN=store.get('pan_run',null);
 function runFor(name){if(!RUN||RUN.name!==name){RUN={name,secs:0,done:false};store.set('pan_run',RUN)}return RUN}
@@ -341,7 +342,7 @@ function timeSig(name,sec){const t='pan-time|'+name.normalize('NFKC').trim().toL
   for(const ch of t){h^=ch.codePointAt(0);h=Math.imul(h,16777619)>>>0}h^=h>>>15;h=Math.imul(h,2246822519)>>>0;h^=h>>>13;h>>>=0;
   const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let o='';for(let k=0;k<5;k++){o+=A[h%31];h=Math.floor(h/31)}return o}
 function formLink(name,code,time,sig){const E=FORM_ENTRY;if(!(E.name&&E.code&&E.time&&E.sig))return FORM_SHORT;
-  const q=[[E.name,name],[E.code,code],[E.time,time],[E.sig,sig]].map(([k,v])=>'entry.'+k+'='+encodeURIComponent(v)).join('&');return FORM_URL+'?usp=pp_url&'+q}
+  const q=[[E.name,name],[E.lang,FORM_LANG[LANG]||''],[E.code,code],[E.time,time],[E.sig,sig]].filter(([k])=>k).map(([k,v])=>'entry.'+k+'='+encodeURIComponent(v)).join('&');return FORM_URL+'?usp=pp_url&'+q}
 const REQUIRED=['portrait','birthday'];// 再加上任一結局
 function qualified(){return REQUIRED.every(k=>ach[k])&&(ach.leave||ach.stay)}
 
